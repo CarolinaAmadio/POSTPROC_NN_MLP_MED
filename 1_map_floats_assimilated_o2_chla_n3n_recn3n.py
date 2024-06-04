@@ -1,134 +1,98 @@
+print('export ONLINE_REPO=/g100_work/OGS_devC/camadio/ONLINE_REPO/')
+print('export ONLINE_REPO=/g100_work/OGS_devC/camadio/ONLINE_REPO/')
+print('export ONLINE_REPO=/g100_work/OGS_devC/camadio/ONLINE_REPO/')
+
 import numpy as np
 import basins.OGS as OGS
-from instruments import superfloat
+from instruments import float_ppcon
 from instruments.var_conversions import FLOATVARS
+from commons.time_interval import TimeInterval
+from commons import timerequestors
 import warnings
 warnings.filterwarnings('ignore')
+import pandas as pd
+import datetime as datetime
+from basins.region import Region, Rectangle
+import basins.V2 as basV2
 import sys
 sys.path.append("/g100/home/userexternal/camadio0/CA_functions/")
-import pandas as pd
-from mpl_toolkits.basemap import Basemap
-import matplotlib.pyplot as plt
-from basins_CA import plot_map_subbasins
-from matplotlib.patches import Polygon
-name_basins, basin_borders = plot_map_subbasins()
+from basins_CA import cross_Med_basins
 
-RUN, run  = 'DA_SATFLOAT' , 'DA_SATFLOAT'
-RUN, run  = 'PPCon' , 'PPCon'
-VARLIST = ['N3n','P_l','O2o']
+def col_to_dt(df,name_col):
+    """ from object to datetime --> name_col
+    """
+    df['date'] = pd.to_datetime(df[name_col]).dt.date
+    df['date'] = pd.to_datetime(df['date']).dt.date
+    df['date'] = pd.to_datetime(df['date'])
+    return(df)
 
+def col_to_basin(df,lon_col_name='lon', lat_col_name='lat'):
+    df['Basin'] = np.nan
+    for III in range(0,len(df)):
+        tmp_lat = df.iloc[III,:][lat_col_name]
+        tmp_lon = df.iloc[III,:][lon_col_name]
+        ARGO       = Rectangle(np.float64(tmp_lon ) , np.float64( tmp_lon) , np.float64(tmp_lat) , np.float64(tmp_lat))
+        NAME_BASIN , BORDER_BASIN = cross_Med_basins(ARGO)
+        df['Basin'].iloc[III] = NAME_BASIN
+    return (df)
 
-df    = pd.read_csv('Float_assimilated_'+ RUN    +'.csv' , index_col=0)
-dfqc  = pd.read_csv('Float_assimilated_'+ RUN    +'_N3nqc.csv',   index_col=0)
+# dynamic inputs
+RUN, run   = 'MedBFM4.2_Q24_v3' , 'MedBFM4.2_Q24_v3'
 
-CHLA    = df[['P_l_LON', 'P_l_LAT', 'P_l_DATE', 'P_l_NAME',]]
-O2o     = df[['O2o_LON', 'O2o_LAT', 'O2o_DATE', 'O2o_NAME',]]
-N3n     = dfqc[dfqc.Qc>=0]
-N3n_rec = dfqc[dfqc.Qc<0]
+#static inputs
+VARLIST    = ['N3n','P_l','O2o']
+df         = pd.read_csv('Float_assimilated_'+ RUN    +'.csv' , index_col=0)
+df_CHLA    = df[['P_l_LON', 'P_l_LAT', 'P_l_DATE', 'P_l_NAME',]]
+df_O2o     = df[['O2o_LON', 'O2o_LAT', 'O2o_DATE', 'O2o_NAME',]]
 
 # la somma di len(N3n) + len(N3n_rec) = len(df)
 NAMEVAR  = 'N3n'
 strings=df.columns
 LIST_sliced_df = [string for string in strings if NAMEVAR in string]
-df=df[LIST_sliced_df]
-df.dropna(how='all', inplace=True)
+df_N3N=df[LIST_sliced_df]
+df_N3N.dropna(how='all', inplace=True)
 LIST_COL         =  ['lon','lat','DATE','NAME']
-df.columns = LIST_COL
+df_N3N.columns = LIST_COL
 
-fig, ax = plt.subplots(figsize=(15, 8))
-map = Basemap(
-     llcrnrlon  =  -6, #  np.round(df.LON.min()-2,0), # Longitude lower right corner
-     llcrnrlat  =  30, # np.round(df.LAT.min()-2,0), # Latitude lower right corner
-     urcrnrlon  =  36, # np.round(df.LON.max()+2,0), # Longitude upper right corner
-     urcrnrlat  =  46, # np.round(df.LAT.max()+2,0), # Latitude upper right corner
-     resolution =   'i', # Crude resolution
-     projection = 'merc', # Transverse Mercator projection
-)
+# insert qc list in n3n dataframe 
+df_N3N.NAME     = df_N3N.NAME.astype(int) #
+df_N3N  = col_to_dt(df_N3N,'DATE')
+df_N3N['Qc']    = np.nan
 
-map.drawparallels(np.arange(20,48,5.),labels=[1,0,0,0], linewidth=0.001, fontsize=24)
-map.drawmeridians(np.arange(-6,40,5.),labels=[0,0,0,1], linewidth=0.001, fontsize=24)
-map.drawcoastlines(color='silver' )
-map.drawmapboundary(fill_color='white')
-map.fillcontinents(color='white' ,lake_color='white')
+TI_3  = timerequestors.TimeInterval(starttime='20190101', endtime='20200101', dateformat='%Y%m%d')
+Profilelist=float_ppcon.FloatSelector(None  ,TI_3, OGS.med)
 
-#  linewidth = 00 doesnt work with version of python 3.6 and after
-#map.drawparallels(np.arange(20,48,5.),labels=[1,0,0,0], linewidth=0.0, fontsize=20)
-#map.drawmeridians(np.arange(-6,40,5.),labels=[0,0,0,1], linewidth=0.0, fontsize=20)
+LIST_REJECTED=[]
+from functools import reduce
 
-for III in range(0,len(name_basins)):
-    lat_corners= np.array(basin_borders[III])[:,1]
-    lon_corners= np.array(basin_borders[III])[:,0]
-    poly_corners = np.zeros((len(lat_corners), 2), np.float64)
-    poly_corners[:,0] = lon_corners
-    poly_corners[:,1] = lat_corners
-    x, y = map( poly_corners[:,0], poly_corners[:,1] )
-    xy = zip(x,y)
-    poly = Polygon( list(xy), facecolor='white', edgecolor='grey')
-    plt.gca().add_patch(poly)
-
-map.fillcontinents(color='white' ,lake_color='white')
-
-
-# PLotto pseudonitrato dataset
-N3n_rec = N3n_rec.iloc[:,0:-1]
-N3n_rec.columns= LIST_COL
-if len(N3n_rec) >0:
-   lat=np.array(N3n_rec.lat)
-   lon=np.array(N3n_rec.lon)
-   lons, lats      = map(lon, lat)  # transform coordinates
-   scat = ax.scatter(lons, lats,          s=200, zorder=4, marker='o', facecolor='tab:blue',  edgecolor='k'  , linewidth=0.9 , alpha=0.9)
-   scat = ax.scatter(lons[0], lats[0],    s=200, zorder=4,  marker='o',  facecolor='tab:blue',  edgecolor='k', linewidth=0.9 , alpha=0.9, label= 'recNO3' )
-   plt.gca()
-
-
-N3n = N3n.iloc[:,0:-1]
-N3n.columns= LIST_COL
-lat=np.array(N3n.lat)
-lon=np.array(N3n.lon)
-lons,lats  = map(lon,lat)
-
-# plotto nitrati
-scat = ax.scatter(lons[0], lats[0],  s=150, zorder=4, marker='o' , color='orangered', edgecolor='k', linewidth=.1 ,  label= 'NO3' )
-scat = ax.scatter(lons,    lats,     s=150, zorder=4, marker='o' , color='orangered', edgecolor='k', linewidth=.1 )
-
-
-# Cloro quadretti
-lat=np.array(CHLA.P_l_LAT)
-lon=np.array(CHLA.P_l_LON)
-lons, lats      = map(lon, lat)  # transform coordinates
-scat = ax.scatter(lons, lats,          s=20, zorder=4, color='w', marker= "s", edgecolor='k', linewidth=0.9 , alpha=1)
-scat = ax.scatter(lons[0], lats[0],    s=20, zorder=4, color='w', marker= "s", edgecolor='k', linewidth=0.9 , alpha=1, label= 'Chl' )
-plt.gca()
-
-ax.annotate(text = "Alb",xy  = (map(-3.5,  35.8) ), fontsize=16,  weight='bold') #,bbox={'facecolor': 'w', 'alpha': 0.5, 'pad': 10}  ))
-ax.annotate(text = "Swm1",xy = (map(2,     37.45)   ), fontsize=16, weight='bold' )
-ax.annotate(text = "Nwm",xy  = (map(1.,    40.2) ), fontsize=16,weight='bold' )
-ax.annotate(text = "Swm2",xy = (map(5.1,   36.7) ), fontsize=16 , weight='bold')
-ax.annotate(text = "Tyr1",xy = (map(10,    41.7) ), fontsize=16, weight='bold')
-ax.annotate(text = "Tyr2",xy = (map(10.8,  38.3)   ), fontsize=16, weight='bold')
-ax.annotate(text = "Adr1",xy = (map(14.3,  43)   ), fontsize=16, weight='bold')
-ax.annotate(text = "Adr2",xy = (map(18.,   40.5)   ), fontsize=16, weight='bold')
-ax.annotate(text = "Aeg",xy = (map(25,     37)   ), fontsize=16, weight='bold')
-
-ax.annotate(text = "Ion1",xy = (map(12,    34.5)   ), fontsize=16, weight='bold')
-ax.annotate(text = "Ion2",xy = (map(17,    32.5)   ), fontsize=16, weight='bold')
-ax.annotate(text = "Ion3",xy = (map(19,    38)   ), fontsize=16, weight='bold')
-
-ax.annotate(text = "Lev1",xy = (map(22.2,    33)   ), fontsize=16, weight='bold')
-ax.annotate(text = "Lev2",xy = (map(31,    31.8)   ), fontsize=16, weight='bold')
-ax.annotate(text = "Lev3",xy = (map(30.,   35)   ), fontsize=16, weight='bold')
-ax.annotate(text = "Lev4",xy = (map(33.5,  34.1)   ), fontsize=16, weight='bold')
-
-#plt.text('Longitude (deg)', fontsize=22, rotation=90 )
-#plt.text('Latitude (deg)' , fontsize=22)
-
-plt.title('Spatial Distribution of BGC Argo and recNO3 in 2019', fontsize=24, color='k')
-plt.subplots_adjust(left=0.1,top = 0.90 ,bottom=0.12,  right=0.95)
-fig.legend(loc='lower left', bbox_to_anchor=(0.1,0.13), fontsize=22,  shadow=True, ncol=1)
-
-#plt.show()
-plt.savefig('2_fig_float_maps_dpi300_'+run+'.png') # , dpi=300)
-plt.close()
+for p in Profilelist:
+    wmo=p._my_float.wmo
+    tmp= df_N3N[df_N3N.NAME==int(wmo)]
+    # if p is assimilated should be in df_N3N argmisdat dataframe 
+    # check if the entire float is assimilated
+    # check if profile is assimialted matching profilelist and armisdatfile 
+    if int(wmo) in list(df_N3N.NAME):
+       if np.around(np.float64(p.lat),3) in np.around((np.array(tmp.lat)),3): # same lar
+            INDEX= np.where( np.around((np.array(df_N3N.lat)),3) == np.around(np.float64(p.lat),3))
+            if np.around(np.float64(p.lon),3) in np.around((np.array(tmp.lon)),3): # same lon
+               INDEX1= np.where( np.around((np.array(df_N3N.lon)),3) == np.around(np.float64(p.lon),3))
+               if pd.Timestamp(p.time.date()) in tmp.date.tolist(): #same date 
+                   INDEX2= np.array(np.where(np.in1d(df_N3N.date.tolist()  , pd.Timestamp(p.time.date()) ))).flatten()
+                   # find 1  common element (if )
+                   IDX = reduce(np.intersect1d, ( INDEX, INDEX1, INDEX2 ))
+                   if len(IDX) ==1:  
+                       flag =p._my_float.status_profile('NITRATE')
+                       # fill the information in the dataframe 
+                       df_N3N.Qc.iloc[np.array(IDX).flatten()] = flag 
+                   else:  
+                       raise TypeError("More than 1 float in a lat lon time position seems to be assimilated ") 
 
 
 
+df_final         = col_to_basin(df_N3N)
+df_final.to_csv('Float_assimilated_' + run + '_N3nqc.csv')
+
+df_CHLA.columns  = LIST_COL
+df_CHLA          = col_to_basin(df_CHLA)
+df_O2o.columns   = LIST_COL
+df_O2o           = col_to_basin(df_O2o)
