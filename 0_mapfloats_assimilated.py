@@ -1,17 +1,26 @@
 #Outdir table of the float assimilated: 'Float_assimilated_'+run+'.csv'
-
 #
 #
+import argparse
 import numpy as np
-from commons.Timelist import TimeList
+from bitsea.commons.Timelist import TimeList
 import warnings
+import os
 warnings.filterwarnings('ignore')
 
-RUN, run  = 'MedBFM4.2_Q24_v3' , 'MedBFM4.2_Q24_v3'
+parser = argparse.ArgumentParser(description='Genera Float_assimilated_<run>.csv')
+parser.add_argument('-i', '--inputdir', required=True,
+                    help='Directory degli input')
+parser.add_argument('-r', '--namerun', required=True,
+                    help='Nome del run')
+args = parser.parse_args()
 
-INDIR='/g100_scratch/userexternal/camadio0/'+RUN+'/wrkdir/MODEL/DA__FREQ_1/'
+# run  =  'DA_SAT_FLOAT_V13C_QUID'
+# INDIR="/g100_scratch/userexternal/gbolzon0/V13C/QUID/wrkdir/DA/"
+run = args.namerun
+INDIR = os.path.abspath(args.inputdir)
 
-TLmis = TimeList.fromfilenames(None,INDIR,'*.arg_mis.dat', \
+TLmis = TimeList.fromfilenames(None, INDIR, '*arg_mis.dat', \
                prefix='',dateformat='%Y%m%d')
 
 nprofs = {}

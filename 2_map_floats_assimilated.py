@@ -1,23 +1,31 @@
+import argparse
+import os
 import numpy as np
-import basins.OGS as OGS
-from instruments import superfloat
-from instruments.var_conversions import FLOATVARS
+import bitsea.basins.OGS as OGS
+from bitsea.instruments import superfloat
+from bitsea.instruments.var_conversions import FLOATVARS
 import warnings
 warnings.filterwarnings('ignore')
-import sys
-sys.path.append("/g100/home/userexternal/camadio0/CA_functions/")
 import pandas as pd
 from mpl_toolkits.basemap import Basemap
 import matplotlib.pyplot as plt
-from basins_CA import plot_map_subbasins
+from basins_CA_new_bitsea import plot_map_subbasins
 from matplotlib.patches import Polygon
+
+parser = argparse.ArgumentParser(description='Genera la mappa dei float assimilati')
+parser.add_argument('-i', '--inputdir', required=True, help='Directory degli input')
+parser.add_argument('-r', '--namerun', required=True,  help='Nome del run')
+args = parser.parse_args()
+
+#INPUTDIR = os.path.abspath(args.inputdir)
+run = args.namerun
+
 name_basins, basin_borders = plot_map_subbasins()
 
-RUN, run  = 'MedBFM4.2_Q24_v2' , 'MedBFM4.2_Q24_v2'
 VARLIST = ['N3n','P_l','O2o']
 
-df    = pd.read_csv('Float_assimilated_'+ RUN    +'.csv' , index_col=0)
-dfqc  = pd.read_csv('Float_assimilated_'+ RUN    +'_N3nqc.csv',   index_col=0)
+df    = pd.read_csv('Float_assimilated_'+ run +'.csv', index_col=0)
+dfqc  = pd.read_csv('Float_assimilated_'+ run +'_N3nqc.csv', index_col=0)
 
 CHLA    = df[['P_l_LON', 'P_l_LAT', 'P_l_DATE', 'P_l_NAME',]]
 O2o     = df[['O2o_LON', 'O2o_LAT', 'O2o_DATE', 'O2o_NAME',]]
@@ -71,8 +79,8 @@ if len(N3n_rec) >0:
    lat=np.array(N3n_rec.lat)
    lon=np.array(N3n_rec.lon)
    lons, lats      = map(lon, lat)  # transform coordinates
-   scat = ax.scatter(lons, lats,          s=130, zorder=4, marker='o', facecolor='dodgerblue',  edgecolor='k'  , linewidth=0.9 , alpha=0.9)
-   scat = ax.scatter(lons[0], lats[0],    s=130, zorder=4,  marker='o',  facecolor='dodgerblue',  edgecolor='k', linewidth=0.9 , alpha=0.9, label= 'recNO3' )
+   scat = ax.scatter(lons, lats,          s=130, zorder=3, marker='o', facecolor='dodgerblue',  edgecolor='k'  , linewidth=0.9 , alpha=0.9)
+   scat = ax.scatter(lons[0], lats[0],    s=130, zorder=3,  marker='o',  facecolor='dodgerblue',  edgecolor='k', linewidth=0.9 , alpha=0.9, label= 'recNO3' )
    plt.gca()
 
 
@@ -82,8 +90,8 @@ lon=np.array(N3n.lon)
 lons,lats  = map(lon,lat)
 
 # plotto nitrati
-scat = ax.scatter(lons[0], lats[0],  s=130, zorder=4, marker='o' , color='orangered', edgecolor='k', linewidth=.1 ,  label= 'NO3' )
-scat = ax.scatter(lons,    lats,     s=130, zorder=4, marker='o' , color='orangered', edgecolor='k', linewidth=.1 )
+scat = ax.scatter(lons[0], lats[0],  s=130, zorder=4, marker='o' , color='coral', edgecolor='k', linewidth=.1 ,  label= 'NO3' )
+scat = ax.scatter(lons,    lats,     s=130, zorder=4, marker='o' , color='coral', edgecolor='k', linewidth=.1 )
 
 
 # Cloro quadretti
@@ -91,8 +99,8 @@ del (lat,lon,lons,lats)
 lat=np.array(CHLA.P_l_LAT)
 lon=np.array(CHLA.P_l_LON)
 lons, lats      = map(lon, lat)  # transform coordinates
-scat = ax.scatter(lons, lats,          s=30, zorder=4, color='w', marker= "s", edgecolor='k', linewidth=0.5 , alpha=1)
-scat = ax.scatter(lons[0], lats[0],    s=30, zorder=4, color='w', marker= "s", edgecolor='k', linewidth=0.5 , alpha=1, label= 'Chl' )
+scat = ax.scatter(lons, lats,          s=20, zorder=4, color='w', marker= "s", edgecolor='k', linewidth=0.5 , alpha=0.8)
+scat = ax.scatter(lons[0], lats[0],    s=20, zorder=4, color='w', marker= "s", edgecolor='k', linewidth=0.5 , alpha=0.8, label= 'Chl' )
 plt.gca()
 
 # Oxy
@@ -116,14 +124,14 @@ ax.annotate(text = "Ion2",xy = (map(17,    32.5)   ), fontsize=16, weight='bold'
 ax.annotate(text = "Ion3",xy = (map(19,    38)   ), fontsize=16, weight='bold')
 
 ax.annotate(text = "Lev1",xy = (map(22.2,    33)   ), fontsize=16, weight='bold')
-ax.annotate(text = "Lev2",xy = (map(29.5,    32.1)   ), fontsize=16, weight='bold')
-ax.annotate(text = "Lev3",xy = (map(30.,   35)   ), fontsize=16, weight='bold')
+ax.annotate(text = "Lev2",xy = (map(30.,   35)   ), fontsize=16, weight='bold')
+ax.annotate(text = "Lev3",xy = (map(29.5,    32.1)   ), fontsize=16, weight='bold')
 ax.annotate(text = "Lev4",xy = (map(33.5,  34.1)   ), fontsize=16, weight='bold')
 
 #plt.text('Longitude (deg)', fontsize=22, rotation=90 )
 #plt.text('Latitude (deg)' , fontsize=22)
 
-plt.title('Spatial Distribution of BGC Argo and recNO3 in 2019', fontsize=24, color='k')
+#plt.title('Spatial Distribution of BGC Argo and recNO3 in 2019', fontsize=24, color='k')
 plt.subplots_adjust(left=0.1,top = 0.90 ,bottom=0.12,  right=0.95)
 fig.legend(loc='lower left', bbox_to_anchor=(0.1,0.13), fontsize=22,  shadow=True, ncol=2)
 

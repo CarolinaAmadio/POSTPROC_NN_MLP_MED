@@ -1,22 +1,26 @@
-print('export ONLINE_REPO=/g100_work/OGS_devC/camadio/ONLINE_REPO/')
-print('export ONLINE_REPO=/g100_work/OGS_devC/camadio/ONLINE_REPO/')
-print('export ONLINE_REPO=/g100_work/OGS_devC/camadio/ONLINE_REPO/')
-
+import argparse
+import os
 import numpy as np
-import basins.OGS as OGS
-from instruments import float_ppcon
-from instruments.var_conversions import FLOATVARS
-from commons.time_interval import TimeInterval
-from commons import timerequestors
+import bitsea.basins.OGS as OGS
+from bitsea.instruments import float_ppcon
+from bitsea.instruments.var_conversions import FLOATVARS
+from bitsea.commons.time_interval import TimeInterval
+from bitsea.commons import timerequestors
 import warnings
 warnings.filterwarnings('ignore')
 import pandas as pd
 import datetime as datetime
-from basins.region import Region, Rectangle
-import basins.V2 as basV2
-import sys
-sys.path.append("/g100/home/userexternal/camadio0/CA_functions/")
-from basins_CA import cross_Med_basins
+from bitsea.basins.region import Region, Rectangle
+import bitsea.basins.V2 as basV2
+from basins_CA_new_bitsea import cross_Med_basins
+
+parser = argparse.ArgumentParser(description='Genera Float_assimilated_<run>_N3nqc.csv')
+parser.add_argument('-r', '--namerun', required=True, help='Nome del run')
+parser.add_argument('-s', '--timestart', required=True, help='Data di inizio, formato YYYYMMDD')
+parser.add_argument('-e', '--timeend', required=True, help='Data di fine, formato YYYYMMDD')
+args = parser.parse_args()
+
+
 
 def col_to_dt(df,name_col):
     """ from object to datetime --> name_col
@@ -37,11 +41,12 @@ def col_to_basin(df,lon_col_name='lon', lat_col_name='lat'):
     return (df)
 
 # dynamic inputs
-RUN, run   = 'MedBFM4.2_Q24_v3' , 'MedBFM4.2_Q24_v3'
+run = args.namerun
+#INPUTDIR = os.path.abspath(args.inputdir)
 
 #static inputs
 VARLIST    = ['N3n','P_l','O2o']
-df         = pd.read_csv('Float_assimilated_'+ RUN    +'.csv' , index_col=0)
+df         = pd.read_csv('Float_assimilated_'+ run +'.csv', index_col=0)
 df_CHLA    = df[['P_l_LON', 'P_l_LAT', 'P_l_DATE', 'P_l_NAME',]]
 df_O2o     = df[['O2o_LON', 'O2o_LAT', 'O2o_DATE', 'O2o_NAME',]]
 
@@ -59,7 +64,7 @@ df_N3N.NAME     = df_N3N.NAME.astype(int) #
 df_N3N  = col_to_dt(df_N3N,'DATE')
 df_N3N['Qc']    = np.nan
 
-TI_3  = timerequestors.TimeInterval(starttime='20190101', endtime='20200101', dateformat='%Y%m%d')
+TI_3  = timerequestors.TimeInterval(starttime=args.timestart, endtime=args.timeend, dateformat='%Y%m%d')
 Profilelist=float_ppcon.FloatSelector(None  ,TI_3, OGS.med)
 
 LIST_REJECTED=[]
@@ -85,8 +90,10 @@ for p in Profilelist:
                        # fill the information in the dataframe 
                        df_N3N.Qc.iloc[np.array(IDX).flatten()] = flag 
                    else:  
-                       raise TypeError("More than 1 float in a lat lon time position seems to be assimilated ") 
-
+                       print("More than 1 float in grid point and time  seems to be assimilated")
+                       print(p.name())
+                       print(p.time)
+                       print(f"is not assimilated in favor of another float called {p.name()} " f"cycle {p._my_float.cycle} in day {p.time}")
 
 
 df_final         = col_to_basin(df_N3N)
